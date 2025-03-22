@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "x64-Debug",
+      "binaryDir": "${workspaceFolder}/out/build/",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ]
+}

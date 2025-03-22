@@ -1,0 +1,8 @@
+out/
+.vscode/
+build/
+.cxx/
+.gradle/
+.idea/
+SDL/
+dxc_files/

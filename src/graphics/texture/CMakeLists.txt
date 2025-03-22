@@ -1,0 +1,5 @@
+set(SOURCES
+	${CMAKE_CURRENT_SOURCE_DIR}/texture.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/texture.h
+)
+target_sources(${PROJECT_NAME} PRIVATE ${SOURCES})
