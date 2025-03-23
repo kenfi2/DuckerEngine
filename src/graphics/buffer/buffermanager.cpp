@@ -31,12 +31,12 @@ std::string getPrimitiveType(PrimitiveType primitiveType)
 
 bool BufferManager::init(const std::string& gpuDriver)
 {
+    #ifndef USE_PRECOMPILED_SHADERS
     static const std::unordered_map<std::string, std::shared_ptr<BaseShaderHash>> shaderFiles {
-        #ifndef USE_PRECOMPILED_SHADERS
         { "cube.hlsl", std::make_shared<ShaderHash<SolidVertex>>() },
         { "texture.hlsl", std::make_shared<ShaderHash<TextureVertex>>() }
-        #endif
     };
+    #endif
 
     std::unique_ptr<Shaders> vsShader, fsShader;
 
