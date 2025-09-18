@@ -725,7 +725,7 @@ void Painter::draw()
 
         SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
 
-        for(const DrawCommand& drawCommand : *bufferManager.get()) {
+        for(DrawCommand& drawCommand : *bufferManager.get()) {
             Program* program = g_programs.get(drawCommand.type, drawCommand.texture != nullptr);
             if(program) {
                 if(!drawProgram) {
@@ -744,8 +744,7 @@ void Painter::draw()
                 program->bind(renderPass);
             }
 
-            if(drawCommand.texture)
-                drawCommand.texture->bind(renderPass);
+            drawCommand.bindTexture(renderPass);
 
             SDL_DrawGPUPrimitives(renderPass, (uint32_t)drawCommand.vertexCount, 1, (uint32_t)drawCommand.offset, 0);
         }
