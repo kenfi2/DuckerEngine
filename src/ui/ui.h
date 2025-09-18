@@ -18,16 +18,24 @@ public:
 
     void destroy();
 
-    void draw(PointI offset);
+    void draw(PointF offset = PointF(0, 0));
 
     void resize(int width, int height);
 
     void addChild(const RectI& rect, const Color& color);
+
+    TexturePtr getTexture() const { return m_texture; }
+    const std::vector<UIWidget*>& getChildren() const { return m_children; }
+    uint32_t getChildCount() const { return (uint32_t)m_children.size(); }
     void clearChildren() { m_children.clear(); }
 
 public:
     void setSize(const SizeI& size) { resize(size.w, size.h); }
+
+    RectI getRect() const { return m_rect; }
     void setRect(const RectI& rect) { m_rect = rect; }
+
+    Color getColor() const { return m_color; }
     void setColor(const Color& color) { m_color = color; }
 
 private:
@@ -45,6 +53,8 @@ public:
 
     void render();
     void resize(const SizeI& size);
+
+    UIWidget* getRootWidget() const { return m_rootWidget; }
 
 private:
     UIWidget* m_rootWidget;

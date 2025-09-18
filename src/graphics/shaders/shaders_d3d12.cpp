@@ -1,6 +1,5 @@
-#include "shaders.h"
-
 #ifdef WIN32
+#include "shaders.h"
 
 #include <wrl.h>
 
@@ -45,101 +44,8 @@ if(FAILED(x)) {                                 \
 #define DXCall(x) x
 #endif
 
-#endif
-
-Shaders::Shaders(const uint8_t *data, size_t size, bool vertexShader, const std::string& device)
-{
-    m_buffer = data;
-    m_size = size;
-    m_device = device;
-    if(m_device == "direct3d12")
-        m_entryPoint = vertexShader ? "VSMain" : "PSMain";
-    else if(m_device == "vulkan")
-        m_entryPoint = "main";
-    else if(m_device == "metal")
-        m_entryPoint = vertexShader ? "vs_main" : "ps_main";
-
-    m_vertexAttributes.resize(2);
-    m_vertexAttributes[0].buffer_slot = 0;
-    m_vertexAttributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-    m_vertexAttributes[0].location = 0;
-    m_vertexAttributes[0].offset = 0;
-
-    m_vertexAttributes[1].buffer_slot = 0;
-    m_vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
-    m_vertexAttributes[1].location = 1;
-    m_vertexAttributes[1].offset = sizeof(float) * 3;
-
-    m_stage = vertexShader ? SDL_GPU_SHADERSTAGE_VERTEX : SDL_GPU_SHADERSTAGE_FRAGMENT;
-}
-
-Shaders::~Shaders()
-{
-    if(m_compiled && m_buffer)
-        delete[] m_buffer;
-}
-
-bool Shaders::compile(const char* file, bool vertexShader, const std::string& device)
-{
-    m_device = device;
-    bool ret = false;
-    if(m_device == "direct3d12")
-        ret = compileD3D(file, vertexShader, vertexShader ? "vs_6_0" : "ps_6_0");
-    else if(m_device == "vulkan")
-        ret = compileVulkan(file, vertexShader, NULL);
-    else if(m_device == "metal")
-        ret = compileMetal(file, vertexShader, NULL);
-    if(!ret)
-        std::cout << m_error << std::endl;
-    return ret;
-}
-
-bool Shaders::bind(SDL_GPUDevice* device)
-{
-    if(!m_gpuShader.shader) {
-        m_gpuShader.shader = SDL_CreateGPUShader(device, &m_shaderCreateInfo);
-        m_gpuShader.device = device;
-    }
-    return m_gpuShader.shader != nullptr;
-}
-
-Shaders::GPUShader::~GPUShader()
-{
-    SDL_ReleaseGPUShader(device, shader);
-}
-
-void Shaders::createPreCompiledShaderInfo(uint32_t uniformBuffer)
-{
-    SDL_zero(m_shaderCreateInfo);
-    m_shaderCreateInfo.num_samplers = 0;
-    m_shaderCreateInfo.num_storage_buffers = 0;
-    m_shaderCreateInfo.num_storage_textures = 0;
-
-    m_shaderCreateInfo.num_uniform_buffers = uniformBuffer;
-    m_shaderCreateInfo.props = 0;
-
-    m_shaderCreateInfo.format = getFormat();
-    m_shaderCreateInfo.code = m_buffer;
-    m_shaderCreateInfo.code_size = m_size;
-    m_shaderCreateInfo.entrypoint = m_entryPoint.c_str();
-
-    m_shaderCreateInfo.stage = m_stage;
-}
-
-SDL_GPUShaderFormat Shaders::getFormat() const
-{
-    if(m_device == "direct3d12")
-        return SDL_GPU_SHADERFORMAT_DXIL;
-    else if(m_device == "vulkan")
-        return SDL_GPU_SHADERFORMAT_SPIRV;
-    else if(m_device == "metal")
-        return SDL_GPU_SHADERFORMAT_METALLIB; // May be SDL_GPU_SHADERFORMAT_MSL, search and find the reason why to use this
-  return SDL_GPU_SHADERFORMAT_INVALID;
-}
-
 bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profile)
 {   
-#ifdef WIN32
     HRESULT hr{ S_OK };
 
     using namespace Microsoft::WRL;
@@ -286,24 +192,44 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
     ID3D12ShaderReflectionConstantBuffer* constantBuffer;
     ID3D12ShaderReflectionVariable* reflectionVariable;
 
-    for(uint32_t i = 0; i < shaderDesc.ConstantBuffers; ++i) {
-        constantBuffer = reflection->GetConstantBufferByIndex(i);
-        constantBuffer->GetDesc(&bufferDesc);
-
-        for(uint32_t l = 0; l < bufferDesc.Variables; ++l) {
-            reflectionVariable = constantBuffer->GetVariableByIndex(l);
-            reflectionVariable->GetDesc(&variableDesc);
-        }
-
-        m_shaderCreateInfo.num_uniform_buffers++;
-    }
-
     D3D12_SHADER_INPUT_BIND_DESC bindDesc;
     for(uint32_t i = 0; i < shaderDesc.BoundResources; i++) {
         reflection->GetResourceBindingDesc(i, &bindDesc);
 
         if(bindDesc.Type == D3D_SIT_SAMPLER)
             m_shaderCreateInfo.num_samplers++;
+    }
+
+    for(uint32_t i = 0; i < shaderDesc.ConstantBuffers; ++i) {
+        constantBuffer = reflection->GetConstantBufferByIndex(i);
+        constantBuffer->GetDesc(&bufferDesc);
+
+        reflection->GetResourceBindingDescByName(bufferDesc.Name, &bindDesc);
+
+        size_t size = 0;
+        std::unordered_map<std::string, size_t> variables;
+        for(uint32_t l = 0; l < bufferDesc.Variables; ++l) {
+            reflectionVariable = constantBuffer->GetVariableByIndex(l);
+            reflectionVariable->GetDesc(&variableDesc);
+
+            ID3D12ShaderReflectionType* varType = reflectionVariable->GetType();
+            if(varType) {
+                D3D12_SHADER_TYPE_DESC typeDesc;
+                varType->GetDesc(&typeDesc);
+
+                variables[variableDesc.Name] = size;
+                if(typeDesc.Class == D3D10_SVC_STRUCT)
+                    size += addStruct(typeDesc.Name) * typeDesc.Elements;
+                else
+                    size += addPrimitive(typeDesc.Type) * typeDesc.Rows * typeDesc.Columns;
+                if(size == 0)
+                    std::cout << "Indefined type " << typeDesc.Name << " " << typeDesc.Type << std::endl;
+            }
+        }
+
+        m_uniforms[bindDesc.BindPoint] = CBufferPtr(new CBuffer(bindDesc.BindPoint, size, std::move(variables)));
+
+        m_shaderCreateInfo.num_uniform_buffers++;
     }
 
     if(!vertexShader)
@@ -365,17 +291,6 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
     }
 
     return true;
-#else
-    return false;
+}
+
 #endif
-}
-
-bool Shaders::compileVulkan(const char* file, bool vertexShader, const char* profile)
-{
-  return false;
-}
-
-bool Shaders::compileMetal(const char* file, bool vertexShader, const char* profile)
-{
-  return false;
-}

@@ -5,60 +5,82 @@
 #include <utils/color.h>
 #include <utils/point.h>
 #include <utils/rect.h>
+#include <utils/size.h>
 #include <utils/matrix.h>
 
 #include <list>
 #include <functional>
+#include <queue>
 
-#include <graphics/buffer/buffermanager.h>
 #include "frametimer.h"
+#include "buffermanager.h"
 
+class UIWidget;
 class Window;
+class RenderBuffer;
 
-struct PainterState {
-	Matrix3 m_projectionMatrix;
-	Matrix3 m_transformMatrix;
-};
-
-enum TriangleDrawMode {
-    DrawTriangles = 1000,
-    DrawTriangleFan,
-    DrawTriangleStrip
-};
-
-enum {
-    UploadFrame = 0,
-    DrawFrame = 1,
-    LastFrame
+enum Graphics {
+    FramesInFlight = 2
 };
 
 class GPUCommand {
 public:
-    GPUCommand() : m_commandBuffer(nullptr), m_swapchainTexture(nullptr), m_width(0), m_height(0) { }
+    GPUCommand() : m_commandBuffer(nullptr), m_width(0), m_height(0) { }
     ~GPUCommand();
 
-    bool acquire(bool swapchain = false);
+    bool acquire();
     
     void cancel();
 
-    void submit(bool waitFences = true);
+    void submit(bool wait);
     
-    SDL_GPUCommandBuffer* command() const { return m_commandBuffer; }
-
-    SDL_GPUTexture* swapchain() const { return m_swapchainTexture; }
+    SDL_GPUCommandBuffer* getCommand() const { return m_commandBuffer; }
+    SDL_GPUTexture* acquireSwapchain();
 
 private:
     SDL_GPUCommandBuffer* m_commandBuffer;
-    SDL_GPUTexture* m_swapchainTexture;
     uint32_t m_width, m_height;
 };
 
-class Painter : public PainterState {
-public:
-	bool init();
-	void destroy();
+class Painter {
+    struct PainterState {
+        Program* program;
+        SizeI resolution;
+        RectI viewport;
+        Matrix3 transformMatrix;
+        Matrix3 projectionMatrix;
+        Color color;
+        float opacity;
+        float lineWidth;
+        float pointSize;
+        BlendMode blendMode;
+        RectI clipRect;
+    };
 
-    SDL_GPUDevice* getDevice() const { return m_gpuDevice; }
+public:
+    Painter() = default;
+
+    std::string getName() { return m_gpuDriver; }
+
+    bool create();
+    void destroy();
+
+    void bind() { }
+    void unbind() { }
+    void refresh();
+    void refreshContext() { }
+    void reset();
+    void resetDevice() { }
+
+    bool beginRender();
+    void endRender();
+    void flushRender();
+    void swapBuffers();
+
+	void pushState(bool doReset = false);
+	void popState(bool doReset = false);
+
+    void clear(const Color&) { }
 
     void drawPoint(const PointF& point);
     void drawPoint(const PointI& point) { drawPoint(point.toPointF()); }
@@ -98,41 +120,72 @@ public:
     void drawTexturedRects(const std::vector<RectI>& destRects, const TexturePtr& texture, const std::vector<RectI>& srcRects);
     void drawTexturedRects(const std::vector<RectF>& destRects, const TexturePtr& texture, const std::vector<RectI>& srcRects);
 
-	void beginFrame();
-    void endFrame();
+    void draw();
 
-	void clear();
-	void draw();
 public:
+    void genFrameBuffer(uint32_t* fboId);
+    void deleteFrameBuffer(uint32_t* fboId);
+    void bindFrameBuffer(uint32_t fboId);
+    void setFrameBufferTexture(uint32_t fboId, const TexturePtr& texture);
+    void addPendingTexture(const TexturePtr& texture) { m_frameBuffers[m_currentFBO]->addPendingTexture(texture); }
+    SDL_GPUDevice* getDevice() const { return m_gpuDevice; }
+    GPUCommand& getGPUCommand() { return m_gpuCommand; }
+
+    void preDraw(SDL_GPURenderPass* renderPass);
 	void translate(float x, float y);
 
-	void pushState(bool doReset = false);
-	void popState(bool doReset = false);
-
     void setColor(const Color& color) { m_color = color; }
-
-    int getLostFrames() const { return m_lostFrames; }
+    SizeI getResolution() const { return m_resolution; }
+    void setResolution(const SizeI& resolution);
+    void setViewport(const RectI& viewport);
 
 private:
-	void reset();
-	void resetProjectionMatrix();
-	void resetTransformMatrix();
-    void resetColor() { setColor(Color(255, 255, 255)); }
-	void updateProjectionTransformMatrix();
-
-	void setProjectionMatrix(const Matrix3& projectionMatrix);
-	void setTransformMatrix(const Matrix3& transformMatrix);
-
-    BufferManager m_bufferManager;
-	GPUCommand m_gpuCommand;
-	float m_projectionTransformMatrix[16];
-	PainterState m_painterStates[10];
+    GPUCommand m_gpuCommand;
+    std::unordered_map<uint32_t, BufferManagerPtr> m_frameBuffers;
 	std::string m_gpuDriver;
 	SDL_GPUDevice* m_gpuDevice = nullptr;
-    Color m_color;
+    uint32_t m_currentFBO = 0;
+    uint32_t m_fboController = 0;
+    std::queue<uint32_t> m_fboIds;
+    int m_frames = 0;
+    int m_frameIndex = 0;
+
+private:
+    void resetProjectionMatrix();
+    void resetTransformMatrix();
+    void resetColor() { setColor(Color(255, 255, 255)); }
+    void updateProgram();
+    void updateProjectionTransformMatrix();
+    void updateResolution(SDL_GPURenderPass* renderPass);
+    void updateViewport(SDL_GPURenderPass* renderPass);
+
+    void setProjectionMatrix(const Matrix3& projectionMatrix);
+    void setTransformMatrix(const Matrix3& transformMatrix);
+
+	float m_projectionTransformMatrix[16];
+
 	int m_painterStateIndex = 0;
-    int m_lostFrames = 0;
-    int m_currentFrame = 0;
+    bool m_mustUpdateResolution = true;
+    bool m_mustUpdateViewport = false;
+
+    PainterState m_olderStates[10];
+    int m_oldStateIndex = 0;
+
+    SizeI m_resolution;
+    RectI m_viewport;
+    Color m_color = 0xffffffff;
+    float m_opacity = 1.0f;
+    float m_lineWidth = 1.0f;
+    float m_pointSize = 1.0f;
+    RectI m_clipRect;
+    BlendMode m_blendMode = BlendMode_Blend;
+    Matrix3 m_projectionMatrix;
+    Matrix3 m_transformMatrix;
+
+    int m_drawnPrimitives = 0;
+    uint32_t m_drawCalls = 0;
+    uint32_t m_lastDrawnPrimitives = 0;
+    uint32_t m_lastDrawCalls = 0;
 };
 
 extern Painter* g_painter;

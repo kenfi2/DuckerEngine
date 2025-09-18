@@ -2,10 +2,11 @@
 #define WINDOW_H
 
 #include <utils/include.h>
+#include <utils/size.h>
 
 class Window {
 public:
-	Window() : m_running(false), w(0), h(0) { }
+	Window() { }
 	~Window();
 
 	bool init();
@@ -14,17 +15,18 @@ public:
 	
 	bool isRunning() const { return m_running; }
 
-	uint32_t getWidth() const { return w; }
-	uint32_t getHeight() const { return h; }
+	uint32_t getWidth() const { return m_size.w; }
+	uint32_t getHeight() const { return m_size.h; }
 
 	void poll();
+	void resize(const SizeI& size);
 
 public:
 	void onShow();
 	void onHide();
 	void onExposed();
 	void onMoved();
-	void onResize();
+	void onResize(const SizeI& size);
 	void onMinimized();
 	void onMaximized();
 	void onRestore();
@@ -32,10 +34,11 @@ public:
 	void onQuit();
 
 private:
+	SizeI m_size;
+	SizeI m_resolution;
 	SDL_Window* m_sdlWindow = nullptr;
-	bool m_running;
-	uint32_t w;
-	uint32_t h;
+	bool m_running = false;
+	bool m_visible = false;
 };
 
 #endif

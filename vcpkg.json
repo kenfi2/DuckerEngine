@@ -2,6 +2,7 @@
   "name": "ducker",
   "version": "1.0.0",
   "dependencies": [
-    { "name": "vulkan-headers" }
+    "boost",
+    "spirv-reflect"
   ]
 }

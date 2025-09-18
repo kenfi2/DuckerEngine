@@ -32,7 +32,7 @@ void Engine::start()
         return;
     }
 
-    if(!g_painter->init())
+    if(!g_painter->create())
         return;
 
     SDL_Log("Context has been created. Starting poll");
@@ -61,39 +61,44 @@ void Engine::poll()
             frame();
         }
     } while(running);
+
+    g_painter->destroy();
 }
 
 void Engine::frame()
 {
     static uint32_t frameCount = 0;
-    static std::chrono::microseconds updateInterval(1000000);
-    static uint32_t totalLostFrames = 0;
-
-    uint64_t elapsed = m_frameTimer.elapsed();
+    static auto lastUpdateTime = std::chrono::steady_clock::now();
 
     frameCount++;
-    totalLostFrames += g_painter->getLostFrames();
+
+    auto currentTime = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastUpdateTime).count();
 
     if(elapsed >= 1000000) {
+        m_lastFps = static_cast<double>(frameCount) * 1000000.0 / elapsed;
+        double avgFrameTime = static_cast<double>(elapsed) / frameCount / 1000.0;
+
         if(auto sdlWindow = g_window->getSDLWindow()) {
-            m_lastFps = (frameCount * 1000000) / elapsed / 2; // divided by 2 cause we toggle between upload and draw
             std::stringstream ss;
-            ss << "Ducker FPS: " << m_lastFps;
-            ss << " Average time: " << (double)(elapsed) / frameCount / 1000.0;
-            ss << " Lost frames: " << totalLostFrames;
+            ss << "Ducker FPS: " << static_cast<int>(m_lastFps);
+            ss << " | Avg: " << std::fixed << std::setprecision(2) << avgFrameTime << "ms";
             SDL_SetWindowTitle(sdlWindow, ss.str().c_str());
         }
-        m_frameTimer.start();
+
+        lastUpdateTime = currentTime;
         frameCount = 0;
-        totalLostFrames = 0;
     }
 }
 
+#include <thread>
+
 void Engine::render()
 {
-    g_painter->beginFrame();
+    g_painter->beginRender();
     g_ui->render();
-    g_painter->endFrame();
+    g_painter->flushRender();
+    g_painter->endRender();
 }
 
 Engine::~Engine()

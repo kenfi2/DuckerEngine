@@ -38,7 +38,7 @@ public:
     TPoint<uint8_t> toPointU8() const;
 
     TSize<int> toSize() const { return TSize<int>(std::lround(w), std::lround(h)); }
-    TSize<float> toSizeF() const { return TSize<float>(w, h); }
+    TSize<float> toSizeF() const { return TSize<float>(static_cast<float>(w), static_cast<float>(h)); }
     TSize<uint8_t> toSizeU8() const { return TSize<uint8_t>(w, h); }
 
     bool isNull() const { return w==0 && h==0; }
