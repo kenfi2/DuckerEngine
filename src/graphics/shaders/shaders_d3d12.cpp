@@ -227,6 +227,8 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
             }
         }
 
+        if(m_uniforms.size() <= bindDesc.BindPoint)
+            m_uniforms.resize(bindDesc.BindPoint + 1);
         m_uniforms[bindDesc.BindPoint] = CBufferPtr(new CBuffer(bindDesc.BindPoint, size, std::move(variables)));
 
         m_shaderCreateInfo.num_uniform_buffers++;

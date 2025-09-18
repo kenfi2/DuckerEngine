@@ -91,27 +91,23 @@ bool Shaders::compileVulkan(const char* file, bool vertexShader, const char* /* 
     for(uint32_t i = 0; i < binding_count; ++i) {
         SpvReflectDescriptorBinding* binding = bindings[i];
         
-        if(binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
-            binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) {
-            uniform_buffer_count++;
-            
-            SpvReflectBlockVariable* block = &binding->block;
-            
-            size_t buffer_size = block->size;
-            std::unordered_map<std::string, size_t> variables;
-            
-            for(uint32_t j = 0; j < block->member_count; ++j) {
-                SpvReflectBlockVariable* member = &block->members[j];
-                variables[member->name] = member->offset;
-            }
-            
-            m_uniforms[binding->binding] = CBufferPtr(new CBuffer(binding->binding, buffer_size, std::move(variables)));
-            
-        } else if(binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-                   binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER ||
-                   binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
-            sampler_count++;
+        uniform_buffer_count++;
+        
+        SpvReflectBlockVariable* block = &binding->block;
+        
+        size_t buffer_size = block->size;
+        std::unordered_map<std::string, size_t> variables;
+        
+        for(uint32_t j = 0; j < block->member_count; ++j) {
+            SpvReflectBlockVariable* member = &block->members[j];
+            variables[member->name] = member->offset;
         }
+        
+        m_uniforms[binding->binding] = CBufferPtr(new CBuffer(binding->binding, buffer_size, std::move(variables)));
+        if(binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER ||
+                binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+            sampler_count++;
     }
 
     m_shaderCreateInfo.num_uniform_buffers = uniform_buffer_count;

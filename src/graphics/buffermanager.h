@@ -21,11 +21,22 @@ public:
         return index;
     }
 
+    T& emplace_back() {
+        size_t index = add(1);
+        return m_data[index];
+    }
+
     void reset() { m_size = 0; }
     size_t size() const { return m_size; }
     const T* data() const { return m_data.data(); }
 
     T& operator[](size_t index) { return m_data[index]; }
+
+    auto begin() { return m_data.begin(); }
+    auto end() { return m_data.end() - m_size; }
+
+    auto begin() const { return m_data.begin(); }
+    auto end() const { return m_data.end() - m_size; }
 
 private:
     std::vector<T> m_data;
@@ -33,12 +44,15 @@ private:
 };
 
 struct DrawCommand {
+    DrawCommand() = default;
     DrawCommand(size_t vertexCount, size_t offset, PrimitiveType type, TexturePtr texture = nullptr) : vertexCount(vertexCount), offset(offset), type(type), texture(texture) { }
 
     size_t vertexCount = 0;
     size_t offset = 0;
     PrimitiveType type = PrimitiveTypeTriangleList;
     TexturePtr texture = nullptr;
+
+    void bindTexture(SDL_GPURenderPass* renderPass);
 };
 
 class GPUCommand;
@@ -68,7 +82,7 @@ public:
 
 private:
     DuckerVector<VertexBuffer> m_vertexBuffer;
-    std::vector<DrawCommand> m_drawCommands;
+    DuckerVector<DrawCommand> m_drawCommands;
     std::vector<TexturePtr> m_pendingTextures;
     RenderBufferPtr m_renderBuffer = nullptr;
     SDL_GPUTexture* m_texture = nullptr;

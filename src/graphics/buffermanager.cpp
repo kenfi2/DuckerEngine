@@ -15,20 +15,19 @@ BufferManager::~BufferManager()
 VertexBuffer *BufferManager::add(size_t count, PrimitiveType type, TexturePtr texture)
 {
     size_t index = m_vertexBuffer.add(count);
-    m_drawCommands.emplace_back(count, index, type, texture);
+
+    DrawCommand& drawCommand = m_drawCommands.emplace_back();
+    drawCommand.vertexCount = count;
+    drawCommand.offset = index;
+    drawCommand.type = type;
+    drawCommand.texture = texture;
     return &m_vertexBuffer[index];
 }
 
 void BufferManager::reset()
 {
     m_vertexBuffer.reset();
-
-    size_t lastSize = m_drawCommands.size();
-    m_drawCommands.clear();
-
-    if(m_drawCommands.size() < lastSize + 64)
-        m_drawCommands.reserve(lastSize + 64);
-
+    m_drawCommands.reset();
     m_pendingTextures.clear();
 }
 
@@ -46,4 +45,11 @@ SDL_GPUBuffer *BufferManager::getBuffer(uint32_t frameIndex)
 void BufferManager::upload(uint32_t frameIndex)
 {
     m_renderBuffer->upload(m_vertexBuffer.data(), m_vertexBuffer.size(), frameIndex);
+}
+
+void DrawCommand::bindTexture(SDL_GPURenderPass* renderPass)
+{
+    if(texture)
+        texture->bind(renderPass);
+    texture = nullptr;
 }
