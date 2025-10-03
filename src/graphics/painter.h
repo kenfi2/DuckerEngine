@@ -1,13 +1,6 @@
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#include <utils/include.h>
-#include <utils/color.h>
-#include <utils/point.h>
-#include <utils/rect.h>
-#include <utils/size.h>
-#include <utils/matrix.h>
-
 #include <list>
 #include <functional>
 #include <queue>
@@ -37,33 +30,22 @@ public:
     SDL_GPUCommandBuffer* getCommand() const { return m_commandBuffer; }
     SDL_GPUTexture* acquireSwapchain();
 
+    uint32_t width() const { return m_width; }
+    uint32_t height() const { return m_height; }
+
 private:
     SDL_GPUCommandBuffer* m_commandBuffer;
     uint32_t m_width, m_height;
 };
 
 class Painter {
-    struct PainterState {
-        Program* program;
-        SizeI resolution;
-        RectI viewport;
-        Matrix3 transformMatrix;
-        Matrix3 projectionMatrix;
-        Color color;
-        float opacity;
-        float lineWidth;
-        float pointSize;
-        BlendMode blendMode;
-        RectI clipRect;
-    };
-
 public:
     Painter() = default;
 
     std::string getName() { return m_gpuDriver; }
 
-    bool create();
-    void destroy();
+    virtual bool create();
+    virtual void destroy();
 
     void bind() { }
     void unbind() { }
@@ -72,15 +54,15 @@ public:
     void reset();
     void resetDevice() { }
 
-    bool beginRender();
-    void endRender();
+    virtual bool beginRender();
+    virtual void endRender();
     void flushRender();
-    void swapBuffers();
+    virtual void swapBuffers();
 
 	void pushState(bool doReset = false);
 	void popState(bool doReset = false);
 
-    void clear(const Color&) { }
+    void clear(const Color& color);
 
     void drawPoint(const PointF& point);
     void drawPoint(const PointI& point) { drawPoint(point.toPointF()); }
@@ -120,7 +102,7 @@ public:
     void drawTexturedRects(const std::vector<RectI>& destRects, const TexturePtr& texture, const std::vector<RectI>& srcRects);
     void drawTexturedRects(const std::vector<RectF>& destRects, const TexturePtr& texture, const std::vector<RectI>& srcRects);
 
-    void draw();
+    virtual void draw();
 
 public:
     void genFrameBuffer(uint32_t* fboId);
@@ -131,15 +113,16 @@ public:
     SDL_GPUDevice* getDevice() const { return m_gpuDevice; }
     GPUCommand& getGPUCommand() { return m_gpuCommand; }
 
-    void preDraw(SDL_GPURenderPass* renderPass);
+    PainterState* getCurrentState();
 	void translate(float x, float y);
 
-    void setColor(const Color& color) { m_color = color; }
-    SizeI getResolution() const { return m_resolution; }
+    void setColor(const Color& color);
+    SizeI getResolution() const;
     void setResolution(const SizeI& resolution);
     void setViewport(const RectI& viewport);
+    void setBlendMode(BlendMode blendMode);
 
-private:
+protected:
     GPUCommand m_gpuCommand;
     std::unordered_map<uint32_t, BufferManagerPtr> m_frameBuffers;
 	std::string m_gpuDriver;
@@ -150,39 +133,23 @@ private:
     int m_frames = 0;
     int m_frameIndex = 0;
 
-private:
+protected:
     void resetProjectionMatrix();
     void resetTransformMatrix();
     void resetColor() { setColor(Color(255, 255, 255)); }
-    void updateProgram();
-    void updateProjectionTransformMatrix();
-    void updateResolution(SDL_GPURenderPass* renderPass);
-    void updateViewport(SDL_GPURenderPass* renderPass);
+    void resetBlendMode() { setBlendMode(BlendMode_Blend); }
 
     void setProjectionMatrix(const Matrix3& projectionMatrix);
     void setTransformMatrix(const Matrix3& transformMatrix);
 
-	float m_projectionTransformMatrix[16];
-
-	int m_painterStateIndex = 0;
-    bool m_mustUpdateResolution = true;
-    bool m_mustUpdateViewport = false;
-
+    PainterState m_state;
     PainterState m_olderStates[10];
+    std::vector<PainterState> m_states;
     int m_oldStateIndex = 0;
 
-    SizeI m_resolution;
-    RectI m_viewport;
-    Color m_color = 0xffffffff;
-    float m_opacity = 1.0f;
-    float m_lineWidth = 1.0f;
-    float m_pointSize = 1.0f;
-    RectI m_clipRect;
-    BlendMode m_blendMode = BlendMode_Blend;
-    Matrix3 m_projectionMatrix;
-    Matrix3 m_transformMatrix;
-
     int m_drawnPrimitives = 0;
+    int m_painterFlags = 0;
+    size_t m_stateId = 0;
     uint32_t m_drawCalls = 0;
     uint32_t m_lastDrawnPrimitives = 0;
     uint32_t m_lastDrawCalls = 0;

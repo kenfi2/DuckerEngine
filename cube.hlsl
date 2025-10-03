@@ -1,14 +1,14 @@
-#define REG(reg, space) register(reg, space)
-
-cbuffer UBO : REG(b0, space1)
+cbuffer UBO : register(b0, space1)
 {
-    float4x4 ModelViewProj;
+    float4x4 u_ProjectionTransformMatrix;
+    float4 u_Color;
+    float2 u_Resolution;
+    float u_Size;
 };
 
 struct VSInput
 {
-    float3 Position : TEXCOORD0;
-    float4 Color : TEXCOORD1;
+    float2 Position : TEXCOORD0;
 };
 
 struct VSOutput
@@ -20,8 +20,8 @@ struct VSOutput
 VSOutput VSMain(VSInput input)
 {
     VSOutput output;
-    output.Color = input.Color;
-    output.Position = mul(ModelViewProj, float4(input.Position, 1.0f));
+    output.Color = u_Color;
+    output.Position = mul(u_ProjectionTransformMatrix, float4(input.Position, 1.0f, 1.0f));
     return output;
 }
 

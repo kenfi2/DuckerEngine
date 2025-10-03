@@ -26,7 +26,7 @@ SDL_GPUBuffer* RenderBuffer::acquireVertexBuffer(size_t size, int frameIndex)
 
         SDL_GPUBufferCreateInfo bufferInfo;
         bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-        bufferInfo.size = (uint32_t)(bufferSize * sizeof(VertexBuffer));
+        bufferInfo.size = (uint32_t)(bufferSize);
         bufferInfo.props = 0;
 
         data.vertexBuffer = SDL_CreateGPUBuffer(g_painter->getDevice(), &bufferInfo);
@@ -38,16 +38,14 @@ SDL_GPUBuffer* RenderBuffer::acquireVertexBuffer(size_t size, int frameIndex)
     return data.vertexBuffer;
 }
 
-void RenderBuffer::upload(const VertexBuffer* vertexData, size_t size, int frameIndex)
+void RenderBuffer::upload(const void* vertexData, size_t size, int frameIndex)
 {
     // Currently based on what we need, this code contains overhead in DX12
     // making it completely unnecessary to use CopyBufferRegion to transfer data from the CPU to the GPU
     // only Map and UnMap working directly in the buffer created initially would be necessary, but what can we do?
     Data& data = m_buffers[frameIndex];
-
-    size_t neededSize = size * sizeof(VertexBuffer);
-
-    if(!data.transferBuffer || data.transferSize < neededSize) {
+    size_t neededSize = size;
+    if(!data.transferBuffer || data.transferSize < size) {
         if(data.transferBuffer)
             SDL_ReleaseGPUTransferBuffer(g_painter->getDevice(), data.transferBuffer);
 

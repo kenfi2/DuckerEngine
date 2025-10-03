@@ -4,6 +4,8 @@
 #include <utils/include.h>
 #include <utils/color.h>
 #include <utils/matrix.h>
+#include <utils/size.h>
+
 #include <unordered_map>
 #include <boost/any.hpp>
 
@@ -33,7 +35,11 @@ enum ShaderFeatures {
     ShaderFeature_RectOffset = 16384
 };
 
-struct VertexBuffer {
+struct SolidVertexBuffer {
+	float x, y;
+};
+
+struct TexelVertexBuffer {
     float x, y;
     float u, v;
     float r, g, b, a;
@@ -41,53 +47,115 @@ struct VertexBuffer {
 
 class Window;
 class Program {
+	union Uniform {
+		uint64_t value;
+		struct {
+			uint32_t location;
+			uint16_t slot;
+			uint16_t type;
+		} data;
+	};
+
 public:
+    enum {
+        MAX_UNIFORM_LOCATIONS = 30
+    };
+
+	enum {
+		VERTEX_ATTR = 0,
+		TEXCOORD_ATTR,
+		VERTEXCOLOR_ATTR
+	};
+
+	enum {
+		PROJECTIONTRANSFORM_MATRIX_UNIFORM,
+		COLOR_UNIFORM,
+		RESOLUTION_UNIFORM,
+		SIZE_UNIFORM,
+		TIME_UNIFORM,
+		GLOBAL_TIME_UNIFORM,
+		LEVEL_UNIFORM,
+		POSITION_UNIFORM,
+		RECT_SIZE_UNIFORM,
+		RECT_OFFSET_UNIFORM,
+		TEXTURE_SCALE_UNIFORM,
+		TEX0_UNIFORM,
+		TEX1_UNIFORM,
+		TEX2_UNIFORM,
+		DYNAMIC_UNIFORM_BEGIN,
+	};
+
 	Program(SDL_GPUSampleCount sampleCount = SDL_GPU_SAMPLECOUNT_1) : m_sampleCount(sampleCount) { }
 
-	bool createPipeline(const std::unique_ptr<Shaders>& vertexShader, const std::unique_ptr<Shaders>& fragmentShader, PrimitiveType primitiveType, uint32_t pitch);
+	bool createPipeline(const std::unique_ptr<Shaders>& vertexShader, const std::unique_ptr<Shaders>& fragmentShader, BlendMode blendMode, PrimitiveType primitiveType, uint32_t pitch);
 	void destroy();
 
 	bool link() const { return true; }
 	void bind(SDL_GPURenderPass* renderPass);
 
 	template<typename T>
-	void setConstantBufferValue(int slot, uint8_t shaderType, T t);
+	void setUniform(size_t index, const T& value);
+
+	template<typename T>
+	void setUniform(const std::string& variable, const T& value);
+
+	void createShaderProgram(const std::string& vertexShader, const std::string& fragmentShader, uint32_t features);
+
+	void setProjectionTransformMatrix(const Matrix3& projectionTransformMatrix);
+	void setResolution(const SizeI& resolution);
+    void setTextureSize(const SizeI& textureSize);
+    void setSize(float size);
+    void setLevel(float level);
+    void setColor(const Color& color);
+    void setTime(float time);
+    // void setPosition(Point3F position);
+    void setRectSize(const SizeF& rectOffset);
+    void setRectOffset(const PointF& rectOffset);
 
 	void pushData(SDL_GPUCommandBuffer* commandBuffer);
 
 private:
+	void bindUniformLocation(size_t index, const std::string& variable);
+
 	std::vector<CBufferPtr> m_uniforms[LastShaderType];
+	std::array<Uniform, MAX_UNIFORM_LOCATIONS> m_uniformLocations;
 	SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
 	SDL_GPUSampleCount m_sampleCount = SDL_GPU_SAMPLECOUNT_1;
+	uint32_t m_features = 0;
 };
 
 class Programs {
 public:
 	bool init(const std::string& gpuDriver);
-	Program* get(PrimitiveType primitiveType, bool texture) {
-		return &m_programs[texture][primitiveType];
+	Program* get(BlendMode blendMode, PrimitiveType primitiveType, bool texture) {
+		size_t index = ((size_t)blendMode * LastPrimitiveType + (size_t)primitiveType) * 2 + texture;
+		return &m_programs[index];
 	}
 
 	void clear() {
-		for(int y = 0; y < 2; ++y) {
-			for(int i = 0; i < LastPrimitiveType; ++i)
-				m_programs[y][i].destroy();
-		}
+		for(size_t i = 0; i < SDL_arraysize(m_programs); ++i)
+			m_programs[i].destroy();
 	}
 
 private:
-	Program m_programs[2][LastPrimitiveType];
+	Program m_programs[BlendMode_Last * LastPrimitiveType * 2];
 };
 
 extern Programs g_programs;
 
-template <typename T>
-inline void Program::setConstantBufferValue(int slot, uint8_t shaderType, T t)
+template<typename T>
+inline void Program::setUniform(size_t index, const T& value)
 {
-	if(slot >= m_uniforms[shaderType].size())
-		return;
+	Uniform& uniform = m_uniformLocations[index];
 
-	m_uniforms[shaderType][slot]->setData(t);
+	m_uniforms[uniform.data.type][uniform.data.slot]->setValue(uniform.data.location, value);
+}
+
+template <typename T>
+inline void Program::setUniform(const std::string &variable, const T &value)
+{
+	for(const CBufferPtr& uniform : m_uniforms[FragmentShader])
+		uniform->setValue(variable, value);
 }
 
 #endif

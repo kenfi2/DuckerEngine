@@ -76,7 +76,7 @@ void Engine::frame()
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastUpdateTime).count();
 
     if(elapsed >= 1000000) {
-        m_lastFps = static_cast<double>(frameCount) * 1000000.0 / elapsed;
+        m_lastFps = (uint64_t)(static_cast<double>(frameCount) * 1000000.0 / elapsed);
         double avgFrameTime = static_cast<double>(elapsed) / frameCount / 1000.0;
 
         if(auto sdlWindow = g_window->getSDLWindow()) {

@@ -2,6 +2,7 @@
 #include "renderbuffer.h"
 
 #include <graphics/texture/texture.h>
+#include <graphics/painter.h>
 
 BufferManager::BufferManager()
 {
@@ -12,16 +13,11 @@ BufferManager::~BufferManager()
 {
 }
 
-VertexBuffer *BufferManager::add(size_t count, PrimitiveType type, TexturePtr texture)
+void BufferManager::clear(const Color& color)
 {
-    size_t index = m_vertexBuffer.add(count);
-
-    DrawCommand& drawCommand = m_drawCommands.emplace_back();
-    drawCommand.vertexCount = count;
-    drawCommand.offset = index;
-    drawCommand.type = type;
-    drawCommand.texture = texture;
-    return &m_vertexBuffer[index];
+    m_vertexBuffer.reset();
+    m_drawCommands.reset();
+    m_clearColor = color;
 }
 
 void BufferManager::reset()
@@ -29,6 +25,14 @@ void BufferManager::reset()
     m_vertexBuffer.reset();
     m_drawCommands.reset();
     m_pendingTextures.clear();
+}
+
+void BufferManager::setTexture(const TexturePtr& texture)
+{
+    const SizeI& size = texture->getSize();
+    m_width = size.w;
+    m_height = size.h;
+    m_texture = texture->get();
 }
 
 void BufferManager::uploadPendingTextures(SDL_GPUCommandBuffer* commandBuffer)
@@ -44,7 +48,7 @@ SDL_GPUBuffer *BufferManager::getBuffer(uint32_t frameIndex)
 
 void BufferManager::upload(uint32_t frameIndex)
 {
-    m_renderBuffer->upload(m_vertexBuffer.data(), m_vertexBuffer.size(), frameIndex);
+    m_renderBuffer->upload((void*)m_vertexBuffer.data(), m_vertexBuffer.size(), frameIndex);
 }
 
 void DrawCommand::bindTexture(SDL_GPURenderPass* renderPass)

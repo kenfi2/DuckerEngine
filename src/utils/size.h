@@ -148,7 +148,7 @@ template<class T>
 TPoint<int> TSize<T>::toPoint() const { return TPoint<int>(std::round((double)w), std::round((double)h)); }
 
 template<class T>
-TPoint<float> TSize<T>::toPointF() const { return TPoint<float>(w, h); }
+TPoint<float> TSize<T>::toPointF() const { return TPoint<float>((float)w, (float)h); }
 
 template<class T>
 TPoint<uint8_t> TSize<T>::toPointU8() const { return TPoint<uint8_t>(std::round((double)w), std::round((double)h)); }

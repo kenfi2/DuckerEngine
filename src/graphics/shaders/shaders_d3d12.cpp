@@ -44,7 +44,7 @@ if(FAILED(x)) {                                 \
 #define DXCall(x) x
 #endif
 
-bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profile)
+bool Shaders::compileD3D(const char* data, bool vertexShader, const char* profile, const char* sourceName)
 {   
     HRESULT hr{ S_OK };
 
@@ -71,13 +71,28 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
         return false;
     }
 
-    std::wstring wfile = ConvertToLPCWSTR(file);
-
+    std::wstring wsourceName;
     ComPtr<IDxcBlobEncoding> sourceBlob;
-    DXCall(hr=utils->LoadFile(wfile.c_str(), nullptr, &sourceBlob));
-    if(FAILED(hr)) {
-        m_error = "Failed to load file " + std::string(file);
-        return false;
+    UINT32 codePage;
+    if(sourceName == NULL) {
+        std::wstring wfile = ConvertToLPCWSTR(data);
+    
+        DXCall(hr=utils->LoadFile(wfile.c_str(), &codePage, &sourceBlob));
+        if(FAILED(hr)) {
+            m_error = "Failed to load file " + std::string(data);
+            return false;
+        }
+
+        wsourceName = wfile;
+    } else {
+        DXCall(hr = utils->CreateBlobFromPinned(data, static_cast<UINT32>(strlen(data)), DXC_CP_UTF8, &sourceBlob));
+        if(FAILED(hr)) {
+            m_error = "Failed to create blob from source code.";
+            return false;
+        }
+
+        wsourceName = ConvertToLPCWSTR(sourceName);
+        codePage = DXC_CP_UTF8;
     }
 
     const char* entryPoint;
@@ -91,7 +106,7 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
 
     LPCWSTR args[]
     {
-        wfile.c_str(),
+        wsourceName.c_str(),
         L"-E", wentryPoint.c_str(),
         L"-T", wprofile.c_str(),
         DXC_ARG_ALL_RESOURCES_BOUND,
@@ -107,7 +122,7 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
     };
 
     DxcBuffer buffer{ };
-    buffer.Encoding = DXC_CP_ACP;
+    buffer.Encoding = codePage;
     buffer.Ptr = sourceBlob->GetBufferPointer();
     buffer.Size = sourceBlob->GetBufferSize();
 
@@ -217,11 +232,8 @@ bool Shaders::compileD3D(const char* file, bool vertexShader, const char* profil
                 D3D12_SHADER_TYPE_DESC typeDesc;
                 varType->GetDesc(&typeDesc);
 
-                variables[variableDesc.Name] = size;
-                if(typeDesc.Class == D3D10_SVC_STRUCT)
-                    size += addStruct(typeDesc.Name) * typeDesc.Elements;
-                else
-                    size += addPrimitive(typeDesc.Type) * typeDesc.Rows * typeDesc.Columns;
+                variables[variableDesc.Name] = variableDesc.StartOffset;
+                size = std::max<size_t>(size, variableDesc.StartOffset + variableDesc.Size);
                 if(size == 0)
                     std::cout << "Indefined type " << typeDesc.Name << " " << typeDesc.Type << std::endl;
             }

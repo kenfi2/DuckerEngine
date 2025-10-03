@@ -36,7 +36,7 @@ Shaders::~Shaders()
         delete[] m_buffer;
 }
 
-bool Shaders::compile(const std::string& file, bool vertexShader, const std::string& device)
+bool Shaders::load(const std::string& file, bool vertexShader, const std::string& device)
 {
     std::string shaderFile = file;
     m_device = device;
@@ -61,6 +61,22 @@ bool Shaders::compile(const std::string& file, bool vertexShader, const std::str
         ret = compileVulkan(shaderFile.c_str(), vertexShader, NULL);
     else if(m_device == "metal")
         ret = compileMetal(shaderFile.c_str(), vertexShader, NULL);
+    if(!ret)
+        std::cout << m_error << std::endl;
+    return ret;
+}
+
+bool Shaders::compile(const std::string& data, const std::string& name, bool vertexShader, const std::string& device)
+{
+    m_device = device;
+
+    bool ret = false;
+    if(m_device == "direct3d12")
+        ret = compileD3D(data.c_str(), vertexShader, vertexShader ? "vs_6_0" : "ps_6_0", name.c_str());
+    else if(m_device == "vulkan")
+        ret = compileVulkan(data.c_str(), vertexShader, NULL, name.c_str());
+    else if(m_device == "metal")
+        ret = compileMetal(data.c_str(), vertexShader, NULL, name.c_str());
     if(!ret)
         std::cout << m_error << std::endl;
     return ret;
@@ -109,7 +125,7 @@ SDL_GPUShaderFormat Shaders::getFormat() const
     return SDL_GPU_SHADERFORMAT_INVALID;
 }
 
-bool Shaders::compileMetal(const char* /* file */, bool /* vertexShader */, const char* /* profile */)
+bool Shaders::compileMetal(const char* /* file */, bool /* vertexShader */, const char* /* profile */, const char* /* sourceName */)
 {
     return false;
 }

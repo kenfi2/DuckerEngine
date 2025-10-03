@@ -20,7 +20,7 @@ public:
     ~RenderBuffer();
 
     SDL_GPUBuffer* acquireVertexBuffer(size_t size, int frameIndex);
-    void upload(const VertexBuffer* vertexData, size_t size, int frameIndex);
+    void upload(const void* vertexData, size_t size, int frameIndex);
 
 private:
     std::vector<Data> m_buffers;

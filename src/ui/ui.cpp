@@ -23,23 +23,35 @@ void UIWidget::destroy()
 
 #define M_PI 3.14159265358979323846
 
+PointF animatedOffset(float amplitude = 10.f, float speed = 1.f) {
+    using clock = std::chrono::steady_clock;
+    static auto start = clock::now();
+
+    auto now = clock::now();
+    float t = std::chrono::duration<float>(now - start).count();
+
+    float dx = std::sin(t * speed) * amplitude;
+    float dy = std::cos(t * speed) * amplitude;
+
+    return PointF(dx, dy);
+}
+
 void UIWidget::draw(PointF offset)
 {
     RectF drawRect = m_rect.toRectF().translated(offset);
     {
-        // FrameBufferPtr frameBuffer = FrameBufferPtr(new FrameBuffer());
-        // frameBuffer->resize(drawRect.size().toSize());
-        // frameBuffer->bind();
+        // m_frameBuffer->bind();
+        // g_painter->clear(Color(0.0f, 0.0f, 0.0f, 0.0f));
         g_painter->setColor(m_color);
-    
+        // g_painter->drawFilledRect(RectF(0,0, drawRect.size()));
+        // m_frameBuffer->release();
+        // m_frameBuffer->draw(drawRect);
         g_painter->drawFilledRect(drawRect);
-    
-        // frameBuffer->release();
-        // frameBuffer->draw(drawRect);
     }
 
     for(UIWidget* child : m_children) {
         PointF childOffset = offset + drawRect.topLeft().toPointF();
+        childOffset += animatedOffset(10, 4);
         child->draw(childOffset);
     }
 }
@@ -48,6 +60,8 @@ void UIWidget::resize(int width, int height)
 {
     m_rect = RectI(m_rect.topLeft(), SizeI(width, height));
     m_update = true;
+    m_frameBuffer = FrameBufferPtr(new FrameBuffer());
+    m_frameBuffer->resize(m_rect.size());
 }
 
 void UIWidget::addChild(const RectI& rect, const Color& color)

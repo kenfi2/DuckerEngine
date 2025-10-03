@@ -48,14 +48,13 @@ void FrameBuffer::resize(const SizeI &size)
     m_wantedSize = size;
     m_texture->generate();
     g_painter->setFrameBufferTexture(m_fbo, m_texture);
-
 }
 
 void FrameBuffer::bind()
 {
     g_painter->pushState(true);
     g_painter->setResolution(m_size);
-    g_painter->setViewport(RectI(0, 0, m_size));
+    // g_painter->setViewport(RectI(0, 0, m_size));
     // g_painter->resetClipRect();
     g_painter->bindFrameBuffer(m_fbo);
     m_prevBoundFbo = m_boundFbo;

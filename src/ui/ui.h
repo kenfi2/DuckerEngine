@@ -40,6 +40,7 @@ public:
 
 private:
     std::vector<UIWidget*> m_children;
+    FrameBufferPtr m_frameBuffer = nullptr;
     TexturePtr m_texture;
     RectI m_rect;
     Color m_color;

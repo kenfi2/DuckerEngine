@@ -4,7 +4,7 @@
 #include <spirv_reflect.h>
 #include <algorithm>
 
-bool Shaders::compileVulkan(const char* file, bool vertexShader, const char* /* profile */)
+bool Shaders::compileVulkan(const char* file, bool vertexShader, const char* /* profile */, const char* /* sourceName */)
 {
     FILE* f = fopen(file, "r");
     if(!f) {

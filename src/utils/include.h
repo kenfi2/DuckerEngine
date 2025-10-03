@@ -40,6 +40,7 @@ enum BlendMode {
     BlendMode_Multiply,
     BlendMode_Add,
     BlendMode_MultiplyMixed,
+    BlendMode_Last
 };
 
 #endif
