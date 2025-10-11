@@ -16,15 +16,6 @@ Texture::~Texture()
 
 void Texture::uploadPixels(const ImagePtr& imagePtr)
 {
-    SDL_GPUTextureCreateInfo textureInfo;
-    SDL_zero(textureInfo);
-    textureInfo.type = SDL_GPU_TEXTURETYPE_2D_ARRAY;
-    textureInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    textureInfo.width = imagePtr->getWidth();
-    textureInfo.height = imagePtr->getHeight();
-    textureInfo.layer_count_or_depth = 1;
-    textureInfo.num_levels = 1;
-    textureInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
     m_size = m_gpuSize = imagePtr->getSize();
     setupTranformMatrix();
     updateSampler();

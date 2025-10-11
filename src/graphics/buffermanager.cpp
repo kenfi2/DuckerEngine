@@ -88,8 +88,9 @@ void BufferManager::deleteTextures(size_t n, uint32_t* textures)
 
 void BufferManager::uploadTextureData(const TexturePtr& texture, const unsigned char* data, size_t dataSize)
 {
-    if(m_textureBuffer == nullptr || m_textureBufferSize < dataSize) {
-        size_t bufferSize = dataSize + SmallBufferSize;
+    size_t requiredSize = (m_textureBufferSize + dataSize);
+    if(m_textureBuffer == nullptr || m_textureBufferSize < requiredSize) {
+        size_t bufferSize = m_textureBufferSize + SmallBufferSize;
 
         SDL_GPUTransferBufferCreateInfo tbInfo;
         tbInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
@@ -131,8 +132,10 @@ void BufferManager::uploadPendingTextures(SDL_GPUCommandBuffer *commandBuffer)
     tti.rows_per_layer = 0;
     tti.transfer_buffer = m_textureBuffer.get();
 
-    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+    SDL_GPUCopyPass* copyPass = nullptr;
     for(const auto& it : m_pendingTextures) {
+        if(!copyPass)
+            copyPass = SDL_BeginGPUCopyPass(commandBuffer);
         SDL_GPUTexture* texture = m_textures[it.first->getId()].first.get();
 
         tti.offset = (uint32_t)it.second;
@@ -148,7 +151,9 @@ void BufferManager::uploadPendingTextures(SDL_GPUCommandBuffer *commandBuffer)
 
         SDL_UploadToGPUTexture(copyPass, &tti, &dest, false);
     }
-    SDL_EndGPUCopyPass(copyPass);
+
+    if(copyPass)
+        SDL_EndGPUCopyPass(copyPass);
 }
 
 void BufferManager::render(GPUCommand& gpuCommand)
@@ -175,6 +180,12 @@ void BufferManager::render(GPUCommand& gpuCommand)
     if(!texture)
         return;
 
+    SDL_GPUBuffer* buffer = m_renderBuffer->getBuffer();
+    if(!buffer)
+        return;
+
+    m_renderBuffer->upload();
+
     static std::vector<SDL_GPUColorTargetInfo> colorTargets(1);
 
     SDL_zero(colorTargets[0]);
@@ -188,9 +199,6 @@ void BufferManager::render(GPUCommand& gpuCommand)
         colorTargets[0].load_op = SDL_GPU_LOADOP_LOAD;
         colorTargets[0].store_op = SDL_GPU_STOREOP_STORE;
     }
-
-    SDL_GPUBuffer* buffer = m_renderBuffer->getBuffer();
-    m_renderBuffer->upload();
 
     SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, colorTargets.data(), (uint32_t)colorTargets.size(), NULL);
 
