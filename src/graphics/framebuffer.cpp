@@ -46,7 +46,8 @@ void FrameBuffer::resize(const SizeI &size)
     m_size = m_texture->getSize();
     m_invalidated = true;
     m_wantedSize = size;
-    m_texture->generate();
+    m_texture->setupTranformMatrix();
+    m_texture->updateSampler();
     g_painter->setFrameBufferTexture(m_fbo, m_texture);
 }
 

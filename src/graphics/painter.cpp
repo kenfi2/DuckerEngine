@@ -56,7 +56,7 @@ bool Painter::create()
     SDL_SetGPUAllowedFramesInFlight(m_gpuDevice, FramesInFlight);
 
     m_frameBuffers.reserve(32);
-    m_frameBuffers[0] = std::make_shared<BufferManager>();
+    m_frameBuffers[0] = std::make_shared<BufferManager>(0, FramesInFlight);
     m_states.resize(1);
 
     reset();
@@ -80,13 +80,13 @@ void Painter::genFrameBuffer(uint32_t* fboId)
         return;
     uint32_t newId;
     if(!m_fboIds.empty()) {
-        newId = m_fboIds.front();
+        newId = m_fboIds.top();
         m_fboIds.pop();
     } else
         newId = ++m_fboController;
 
     *fboId = newId;
-    m_frameBuffers[*fboId] = std::make_shared<BufferManager>();
+    m_frameBuffers[*fboId] = std::make_shared<BufferManager>(newId);
 }
 
 void Painter::deleteFrameBuffer(uint32_t* fboId)
@@ -100,20 +100,20 @@ void Painter::deleteFrameBuffer(uint32_t* fboId)
 void Painter::bindFrameBuffer(uint32_t fboId)
 {
     m_currentFBO = fboId;
-    if(fboId != 0)
-        m_frameBuffers[fboId]->reset();
 }
 
-void Painter::setFrameBufferTexture(uint32_t fboId, const TexturePtr &texture)
+void Painter::setFrameBufferTexture(uint32_t fboId, const TexturePtr& texture)
 {
-    if(fboId != 0)
-        m_frameBuffers[fboId]->setTexture(texture);
+    if(fboId == m_currentFBO)
+        return;
+    
+    m_frameBuffers[fboId]->setTexture(m_frameBuffers[m_currentFBO]->createTexture(texture));
 }
 
-PainterState* Painter::getCurrentState()
+size_t Painter::getCurrentState()
 {
     bool newState = false;
-    if(m_painterFlags != 0) {
+    if(m_painterFlags != 0 || m_state.bindedTextures != 0) {
         ++m_stateId;
         newState = true;
     }
@@ -126,9 +126,21 @@ PainterState* Painter::getCurrentState()
         state.copy(m_state);
         state.id = m_stateId;
         state.flags = m_painterFlags;
+        m_state.bindedTextures = 0;
         m_painterFlags = 0;
     }
-    return &state;
+    return m_stateId;
+}
+
+void Painter::setTexture(Texture* texture, int stage)
+{
+    if(texture) {
+        m_state.textures[stage] = texture->getId();
+        m_state.bindedTextures = std::max(m_state.bindedTextures, (uint32_t)(stage+1));
+    } else {
+        m_state.textures[stage] = 0;
+        m_state.bindedTextures = stage;
+    }
 }
 
 void Painter::translate(float x, float y)
@@ -181,6 +193,7 @@ void Painter::setBlendMode(BlendMode blendMode)
 
 void Painter::reset()
 {
+    resetTexture();
     resetColor();
     resetProjectionMatrix();
     resetTransformMatrix();
@@ -234,7 +247,8 @@ void Painter::drawPoint(const PointF& point)
 
 void Painter::drawPoints(const std::vector<PointF>& points)
 {
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(points.size(), PrimitiveTypePointList, getCurrentState());
+    resetTexture();
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(points.size(), PrimitiveTypePointList);
 
     for(uint32_t i = 0; i < points.size(); ++i) {
         auto& d = vertexData[i];
@@ -262,7 +276,8 @@ void Painter::drawLine(const PointF &a, const PointF &b)
 
 void Painter::drawLines(const std::vector<PointF> &lines)
 {
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(lines.size(), PrimitiveTypeLineList, getCurrentState());
+    resetTexture();
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(lines.size(), PrimitiveTypeLineList);
     for(uint32_t i = 0; i < lines.size(); ++i) {
         auto& d = vertexData[i];
         const PointF& p = lines[i];
@@ -281,7 +296,8 @@ void Painter::drawLines(const std::vector<PointI>& lines)
 
 void Painter::drawLineStrip(const std::vector<PointF> &lines)
 {
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(lines.size(), PrimitiveTypeLineStrip, getCurrentState());
+    resetTexture();
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(lines.size(), PrimitiveTypeLineStrip);
     for(uint32_t i = 0; i < lines.size(); ++i) {
         auto& d = vertexData[i];
         const PointF& p = lines[i];
@@ -363,7 +379,8 @@ void Painter::drawFilledTriangles(const std::vector<PointF> &points, TriangleDra
     else if(mode == DrawTriangles)
         primitiveType = PrimitiveTypeTriangleList;
 
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(points.size(), primitiveType, getCurrentState());
+    resetTexture();
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(points.size(), primitiveType);
     for(uint32_t i = 0; i < points.size(); ++i) {
         auto& d = vertexData[i];
         const PointF& point = points[i];
@@ -405,7 +422,8 @@ void Painter::drawRects(const std::vector<RectI>& rects)
 
 void Painter::drawFilledRect(const RectF &rect)
 {
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(4, PrimitiveTypeTriangleStrip, getCurrentState());
+    resetTexture();
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<SolidVertexBuffer>(4, PrimitiveTypeTriangleStrip);
 
     vertexData[0].x = rect.left();
     vertexData[0].y = rect.top();
@@ -471,7 +489,8 @@ void Painter::drawTexturedRects(const std::vector<RectF> &destRects, const Textu
         return;
 
     size_t size = destRects.size();
-    auto* vertexData = m_frameBuffers[m_currentFBO]->add<TexelVertexBuffer>(size * 6, PrimitiveTypeTriangleStrip, getCurrentState(), texture);
+    setTexture(texture.get());
+    auto* vertexData = m_frameBuffers[m_currentFBO]->add<TexelVertexBuffer>(size * 6, PrimitiveTypeTriangleStrip);
 
     const Matrix3& uvmat = texture->getTransformMatrix();
 
@@ -629,166 +648,11 @@ void Painter::popState(bool doReset)
 void Painter::clear(const Color& color)
 {
     BufferManagerPtr bufferManager = m_frameBuffers[m_currentFBO];
-    if(!bufferManager)
-        return;
     bufferManager->clear(color);
 }
 
 void Painter::draw()
 {
-    SDL_GPUCommandBuffer* commandBuffer = m_gpuCommand.getCommand();
-    if(!commandBuffer)
-        return;
-
     BufferManagerPtr bufferManager = m_frameBuffers[m_currentFBO];
-    if(!bufferManager)
-        return;
-
-    bufferManager->uploadPendingTextures(commandBuffer);
-
-    SDL_GPUTexture* texture = bufferManager->getTexture();
-    uint32_t width = 0, height = 0;
-    if(!texture) {
-        if(m_currentFBO == 0) {
-            texture = m_gpuCommand.acquireSwapchain();
-            width = m_gpuCommand.width();
-            height = m_gpuCommand.height();
-        }
-
-        if(!texture)
-            return;
-    } else {
-        width = bufferManager->getWidth();
-        height = bufferManager->getHeight();
-    }
-
-    static std::vector<SDL_GPUColorTargetInfo> colorTargets(1);
-
-    const Color& clearColor = bufferManager->getClearColor();
-    
-    SDL_zero(colorTargets[0]);
-    colorTargets[0].texture = texture;
-    colorTargets[0].load_op = SDL_GPU_LOADOP_CLEAR;
-    colorTargets[0].store_op = SDL_GPU_STOREOP_STORE;
-    colorTargets[0].clear_color = SDL_FColor{ clearColor.rF(), clearColor.gF(), clearColor.bF(), clearColor.aF() };
-
-    SDL_GPUBuffer* buffer = bufferManager->getBuffer(m_frameIndex);
-    if(!buffer)
-        return;
-
-    SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, colorTargets.data(), (uint32_t)colorTargets.size(), NULL);
-
-    bufferManager->upload(m_frameIndex);
-
-    static SDL_GPUBufferBinding binding;
-    binding.buffer = buffer;
-    binding.offset = 0;
-
-    SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
-
-    Program* drawProgram = nullptr;
-    int updateFlags = 0;
-    int32_t lastState = -1;
-    RectI frameBufferRect(0, 0, width >> colorTargets[0].mip_level, height >> colorTargets[0].mip_level);
-    SDL_GPUViewport viewport;
-    SDL_Rect rect;
-    for(DrawCommand& drawCommand : *bufferManager.get()) {
-        PainterState& drawState = m_states[drawCommand.state];
-        if(lastState != drawState.id) {
-            if(lastState == -1) {
-                updateFlags = MustUpdateProgramResource;
-                drawProgram = drawState.program;
-                if(!drawState.clipRect.isEmpty())
-                    updateFlags |= MustUpdateClipRect;
-                if(!drawState.viewport.isEmpty())
-                    updateFlags |= MustUpdateViewport;
-            } else
-                updateFlags = drawState.flags;
-            lastState = (int32_t)drawState.id;
-        }
-
-        if(!drawState.program) {
-            Program* program = g_programs.get(drawState.blendMode, drawCommand.type, drawCommand.texture != nullptr);
-            if(drawProgram != program) {
-                drawProgram = program;
-                updateFlags = MustUpdateProgramResource;
-            }
-        }
-
-        if(updateFlags & MustUpdateProgram)
-            drawProgram->bind(renderPass);
-
-        if(updateFlags & MustUpdateColor)
-            drawProgram->setColor(drawState.color);
-
-        if(updateFlags & MustUpdateLineWidth) {
-            // apply geometry shader?
-        }
-
-        if(updateFlags & MustUpdatePointSize)
-            drawProgram->setSize(drawState.pointSize);
-
-        if(updateFlags & MustUpdateClipRect) {
-            if(drawState.viewport.size() == drawState.resolution) {
-                rect.h = drawState.clipRect.left();
-                rect.y = drawState.resolution.h - drawState.clipRect.bottom() - 1;
-                rect.w = drawState.clipRect.width();
-                rect.h = drawState.clipRect.height();
-            } else {
-                rect.x = (int)((drawState.clipRect.left()                              /(float)drawState.resolution.w) * drawState.viewport.width());
-                rect.y = (int)(((drawState.resolution.h - drawState.clipRect.bottom() - 1)/(float)drawState.resolution.h) * drawState.viewport.height());
-                rect.w = (int)((drawState.clipRect.width()                             /(float)drawState.resolution.w) * drawState.viewport.width());
-                rect.h = (int)((drawState.clipRect.height()                            /(float)drawState.resolution.h) * drawState.viewport.height());
-            }
-
-            SDL_SetGPUScissor(renderPass, &rect);
-        }
-
-        if(updateFlags & MustUpdateResolution)
-            drawProgram->setResolution(drawState.resolution);
-
-        if(updateFlags & MustUpdateViewport) {
-            viewport.x = (float)drawState.viewport.x();
-            viewport.y = (float)drawState.viewport.y();
-            viewport.w = (float)drawState.viewport.width();
-            viewport.h = (float)drawState.viewport.height();
-            viewport.min_depth = 0;
-            viewport.max_depth = 1;
-
-            SDL_SetGPUViewport(renderPass, &viewport);
-        }
-
-        if(updateFlags & MustUpdateProjectionTransformMatrix) {
-            Matrix3 projectionTransformMatrix = drawState.projectionMatrix * drawState.transformMatrix;
-            drawProgram->setProjectionTransformMatrix(projectionTransformMatrix);
-        }
-
-        drawProgram->pushData(commandBuffer);
-
-        drawCommand.bindTexture(renderPass);
-
-        SDL_DrawGPUPrimitives(renderPass, (uint32_t)drawCommand.vertexCount, 1, (uint32_t)drawCommand.offset, 0);
-
-        if(updateFlags & MustUpdateViewport) {
-            viewport.x = 0;
-            viewport.y = 0;
-            viewport.w = (float)frameBufferRect.width();
-            viewport.h = (float)frameBufferRect.height();
-            viewport.min_depth = 0;
-            viewport.max_depth = 1;
-
-            SDL_SetGPUViewport(renderPass, &viewport);
-        }
-
-        if(updateFlags & MustUpdateClipRect) {
-            rect.x = frameBufferRect.x();
-            rect.y = frameBufferRect.y();
-            rect.w = frameBufferRect.width();
-            rect.h = frameBufferRect.height();
-            SDL_SetGPUScissor(renderPass, &rect);
-        }
-
-        updateFlags = 0;
-    }
-    SDL_EndGPURenderPass(renderPass);
+    bufferManager->render(m_gpuCommand);
 }

@@ -39,7 +39,6 @@ void Engine::start()
 
     g_ui = new UIManager;
     g_ui->init();
-    g_ui->resize(SizeI(100, 100));
 
     m_frameTimer.start();
 
@@ -93,9 +92,15 @@ void Engine::frame()
 
 #include <thread>
 
+static bool firstRender = true;
+
 void Engine::render()
 {
     g_painter->beginRender();
+    if(firstRender) {
+        g_painter->clear(Color(255, 0, 0));
+        firstRender = false;
+    }
     g_ui->render();
     g_painter->flushRender();
     g_painter->endRender();

@@ -26,6 +26,5 @@ private:
 
 extern Engine* g_engine;
 extern Window* g_window;
-extern UIManager* g_ui;
 
 #endif

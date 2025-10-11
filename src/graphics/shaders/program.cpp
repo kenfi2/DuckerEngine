@@ -96,6 +96,8 @@ bool Program::createPipeline(const std::unique_ptr<Shaders> &vertexShader, const
     vertexBufferDescription.instance_step_rate = 0;
     vertexBufferDescription.pitch = pitch;
 
+    m_stride = pitch;
+
     const std::vector<SDL_GPUVertexAttribute>& vertexAttributes = vertexShader->getVertexAttributes();
 
     pipelineInfo.vertex_input_state.num_vertex_buffers = 1;
@@ -371,18 +373,18 @@ cbuffer UBO : register(b0, space1)
 
 struct VertexShaderInput
 {
-    float2 Position : TEXCOORD0;
+    float2 a_Vertex : TEXCOORD0;
 };
 
 struct VertexShaderOutput
 {
-    float4 position : SV_Position;
+    float4 Position : SV_Position;
 };
 
 VertexShaderOutput VSMain(VertexShaderInput input)
 {
     VertexShaderOutput vertexShaderOutput;
-    vertexShaderOutput.position = mul(u_ProjectionTransformMatrix, float4(input.Position.xy, 1.0, 1.0));
+    vertexShaderOutput.Position = mul(u_ProjectionTransformMatrix, float4(input.a_Vertex, 1.0, 1.0));
     return vertexShaderOutput;
 }
 )";
@@ -395,7 +397,7 @@ cbuffer UBO : register(b0, space3)
 
 struct PixelShaderInput
 {
-    float4 position : SV_Position;
+    float4 Position : SV_Position;
 };
 
 float4 PSMain(PixelShaderInput input) : SV_Target0
@@ -404,34 +406,85 @@ float4 PSMain(PixelShaderInput input) : SV_Target0
 }
 )";
 
+std::string mainWithTexCoordsVertexShader = R"(
+cbuffer UBO : register(b0, space1)
+{
+    float4x4 u_ProjectionTransformMatrix;
+};
+
+struct VertexShaderInput
+{
+    float2 a_Vertex : TEXCOORD0;
+    float2 a_TexCoord : TEXCOORD1;
+};
+
+struct VertexShaderOutput
+{
+    float2 v_TexCoord : TEXCOORD0;
+    float4 Position : SV_Position;
+};
+
+VertexShaderOutput VSMain(VertexShaderInput input)
+{
+    VertexShaderOutput output;
+    output.v_TexCoord = input.a_TexCoord;
+    output.Position = mul(u_ProjectionTransformMatrix, float4(input.a_Vertex, 1.0f, 1.0f));
+    return output;
+}
+
+)";
+
+std::string textureSrcFragmentShader = R"(
+Texture2D<float4> u_Tex0 : register(t0, space2);
+SamplerState Sampler : register(s0, space2);
+
+Texture2D<float4> u_Tex1 : register(t1, space2);
+SamplerState Sampler2 : register(s1, space2);
+
+struct PixelShaderInput
+{
+    float2 v_TexCoord : TEXCOORD0;
+    float4 Position : SV_Position;
+};
+
+float4 PSMain(PixelShaderInput input) : SV_Target0
+{
+    return u_Tex0.Sample(Sampler, input.v_TexCoord) + u_Tex1.Sample(Sampler2, input.v_TexCoord);
+}
+)";
+
 #endif
 
 bool Programs::init(const std::string& gpuDriver)
 {
-    std::unique_ptr<Shaders> vsShader, fsShader;
 #if !USE_PRECOMPILED_SHADERS && !USE_LUNA_SHADERS_DESIGN
     static const std::vector<std::string> shaderFiles {
         "cube",
         "texture"
     };
 #elif USE_LUNA_SHADERS_DESIGN
-    vsShader = std::unique_ptr<Shaders>(new Shaders);
-    fsShader = std::unique_ptr<Shaders>(new Shaders);
+    auto createShaderProgram = [gpuDriver](const std::string& vertexShader, const std::string& fragmentShader, uint32_t pitch, bool texture) {
+        std::unique_ptr<Shaders> vsShader = std::unique_ptr<Shaders>(new Shaders);
+        std::unique_ptr<Shaders> fsShader = std::unique_ptr<Shaders>(new Shaders);
+        
+        if(!vsShader->compile(vertexShader, "", true, gpuDriver) || !fsShader->compile(fragmentShader, "", false, gpuDriver))
+            return;
     
-    if(!vsShader->compile(mainVertexShader, "mainVertexShader", true, gpuDriver) || !fsShader->compile(solidColorFragmentShader, "solidColorFragmentShader", false, gpuDriver))
-        return false;
-
-    for(uint8_t b = 0; b < BlendMode_Last; ++b) {
-        for(uint8_t i = 0; i < LastPrimitiveType; ++i) {
-            PrimitiveType primitiveType = (PrimitiveType)i;
-            BlendMode blendMode = (BlendMode)b;
-            Program* program = g_programs.get(blendMode, primitiveType, 0);
-            if(!program->createPipeline(vsShader, fsShader, blendMode, primitiveType, (uint32_t)sizeof(SolidVertexBuffer))) {
-                std::cout << "Failed to create " << getPrimitiveType(primitiveType) << " program to shader." << std::endl;
-                return false;
+        for(uint8_t b = 0; b < BlendMode_Last; ++b) {
+            for(uint8_t i = 0; i < LastPrimitiveType; ++i) {
+                PrimitiveType primitiveType = (PrimitiveType)i;
+                BlendMode blendMode = (BlendMode)b;
+                Program* program = g_programs.get(blendMode, primitiveType, texture);
+                if(!program->createPipeline(vsShader, fsShader, blendMode, primitiveType, pitch)) {
+                    std::cout << "Failed to create " << getPrimitiveType(primitiveType) << " program to shader." << std::endl;
+                    return;
+                }
             }
         }
-    }
+    };
+
+    createShaderProgram(mainVertexShader, solidColorFragmentShader, (uint32_t)sizeof(SolidVertexBuffer), false);
+    createShaderProgram(mainWithTexCoordsVertexShader, textureSrcFragmentShader, (uint32_t)sizeof(TexelVertexBuffer), true);
 #endif
 
 #if USE_PRECOMPILED_SHADERS

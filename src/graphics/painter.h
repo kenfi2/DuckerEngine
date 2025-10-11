@@ -59,6 +59,8 @@ public:
     void flushRender();
     virtual void swapBuffers();
 
+    int getFrameIndex() const { return m_frameIndex; }
+
 	void pushState(bool doReset = false);
 	void popState(bool doReset = false);
 
@@ -109,11 +111,20 @@ public:
     void deleteFrameBuffer(uint32_t* fboId);
     void bindFrameBuffer(uint32_t fboId);
     void setFrameBufferTexture(uint32_t fboId, const TexturePtr& texture);
-    void addPendingTexture(const TexturePtr& texture) { m_frameBuffers[m_currentFBO]->addPendingTexture(texture); }
+    void genTextures(size_t n, uint32_t* textures) { m_frameBuffers[m_currentFBO]->genTextures(n, textures); }
+    void deleteTextures(size_t n, uint32_t* textures) { m_frameBuffers[m_currentFBO]->deleteTextures(n, textures); }
+    void uploadTextureData(const TexturePtr& texture, const unsigned char* data, size_t dataSize) { m_frameBuffers[m_currentFBO]->uploadTextureData(texture, data, dataSize); }
+    void updateTextureSampler(size_t n, uint32_t* textures, SDL_GPUSamplerCreateInfo* samplerInfo) { m_frameBuffers[m_currentFBO]->updateTextureSampler(n, textures, samplerInfo);}
+
     SDL_GPUDevice* getDevice() const { return m_gpuDevice; }
     GPUCommand& getGPUCommand() { return m_gpuCommand; }
 
-    PainterState* getCurrentState();
+    size_t getCurrentState();
+
+    const PainterState& getState(size_t index) { return m_states[index]; }
+    void setTexture(Texture* texture, int stage = 0);
+    void setMultiTexture(int index, const TexturePtr& texture) { setTexture(texture.get(), index); }
+
 	void translate(float x, float y);
 
     void setColor(const Color& color);
@@ -129,7 +140,7 @@ protected:
 	SDL_GPUDevice* m_gpuDevice = nullptr;
     uint32_t m_currentFBO = 0;
     uint32_t m_fboController = 0;
-    std::queue<uint32_t> m_fboIds;
+    std::stack<uint32_t> m_fboIds;
     int m_frames = 0;
     int m_frameIndex = 0;
 
@@ -138,6 +149,7 @@ protected:
     void resetTransformMatrix();
     void resetColor() { setColor(Color(255, 255, 255)); }
     void resetBlendMode() { setBlendMode(BlendMode_Blend); }
+    void resetTexture() { setTexture(nullptr); }
 
     void setProjectionMatrix(const Matrix3& projectionMatrix);
     void setTransformMatrix(const Matrix3& transformMatrix);
@@ -145,10 +157,11 @@ protected:
     PainterState m_state;
     PainterState m_olderStates[10];
     std::vector<PainterState> m_states;
-    int m_oldStateIndex = 0;
 
+    int m_oldStateIndex = 0;
     int m_drawnPrimitives = 0;
     int m_painterFlags = 0;
+
     size_t m_stateId = 0;
     uint32_t m_drawCalls = 0;
     uint32_t m_lastDrawnPrimitives = 0;

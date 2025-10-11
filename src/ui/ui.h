@@ -41,7 +41,7 @@ public:
 private:
     std::vector<UIWidget*> m_children;
     FrameBufferPtr m_frameBuffer = nullptr;
-    TexturePtr m_texture;
+    TexturePtr m_texture = nullptr;
     RectI m_rect;
     Color m_color;
     bool m_update = false;
@@ -61,5 +61,7 @@ private:
     UIWidget* m_rootWidget;
 
 };
+
+extern UIManager* g_ui;
 
 #endif

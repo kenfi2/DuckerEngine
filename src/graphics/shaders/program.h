@@ -35,11 +35,22 @@ enum ShaderFeatures {
     ShaderFeature_RectOffset = 16384
 };
 
+/* Padding is forced because the SDL abstraction sets the stride in the first draw call after SDL_BindGPUVertexBuffers.
+ * this can be changed if you call SDL_BindGPUVertexBuffers with another buffer or offset,
+ * adding padding seems more practical than a workaround or fragmentation of the vertex buffer. */
+
 struct SolidVertexBuffer {
 	float x, y;
+	float padding[6];
 };
 
 struct TexelVertexBuffer {
+    float x, y;
+    float u, v;
+	float padding[4];
+};
+
+struct ColoredTexelVertexBuffer {
     float x, y;
     float u, v;
     float r, g, b, a;
@@ -87,6 +98,8 @@ public:
 
 	Program(SDL_GPUSampleCount sampleCount = SDL_GPU_SAMPLECOUNT_1) : m_sampleCount(sampleCount) { }
 
+	uint32_t getStride() const { return m_stride; }
+
 	bool createPipeline(const std::unique_ptr<Shaders>& vertexShader, const std::unique_ptr<Shaders>& fragmentShader, BlendMode blendMode, PrimitiveType primitiveType, uint32_t pitch);
 	void destroy();
 
@@ -122,6 +135,7 @@ private:
 	SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
 	SDL_GPUSampleCount m_sampleCount = SDL_GPU_SAMPLECOUNT_1;
 	uint32_t m_features = 0;
+	uint32_t m_stride = 0;
 };
 
 class Programs {

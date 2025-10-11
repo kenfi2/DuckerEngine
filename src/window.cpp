@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include <graphics/painter.h>
+#include <ui/ui.h>
 
 Window::~Window()
 {
@@ -130,7 +131,7 @@ void Window::onMoved()
 
 void Window::onResize(const SizeI& size)
 {
-
+    g_ui->resize(m_resolution);
 }
 
 void Window::onMinimized()

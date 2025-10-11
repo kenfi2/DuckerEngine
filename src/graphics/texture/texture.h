@@ -8,7 +8,7 @@
 class GPUCommand;
 class Texture : public std::enable_shared_from_this<Texture> {
 public:
-    Texture() { }
+    Texture();
     ~Texture();
 
     const Matrix3& getTransformMatrix() const { return m_transformMatrix; }
@@ -18,23 +18,18 @@ public:
 
     void setSmooth(bool smooth) { m_smooth = smooth; }
 
-    void generate();
     void uploadPixels(const ImagePtr& imagePtr);
-    void upload(SDL_GPUCommandBuffer* commandBuffer);
     void updateSampler();
     void setupTranformMatrix();
 
-    SDL_GPUTexture* get() const { return m_texture; }
-    void bind(SDL_GPURenderPass* renderPass);
+    uint32_t getId() const { return m_id; }
 
 private:
     Matrix3 m_transformMatrix;
     SizeI m_gpuSize;
     SizeI m_size;
 
-    ImagePtr m_image = nullptr;
-    SDL_GPUTexture* m_texture = nullptr;
-    SDL_GPUSampler* m_sampler = nullptr;
+    uint32_t m_id = 0;
 
     bool m_repeat = false;
     bool m_mipmapFilter = false;
