@@ -576,10 +576,14 @@ void GPUCommand::submit(bool wait)
 {
     if(!m_commandBuffer)
         return;
-    
-    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(m_commandBuffer);
-    if(fence && wait)
+
+    if(wait) {
+        SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(m_commandBuffer);
         SDL_WaitForGPUFences(g_painter->getDevice(), true, &fence, 1);
+        SDL_ReleaseGPUFence(g_painter->getDevice(), fence);
+    } else
+        SDL_SubmitGPUCommandBuffer(m_commandBuffer);
+
     m_commandBuffer = nullptr;
     m_width = 0;
     m_height = 0;
