@@ -28,10 +28,8 @@ RenderBuffer::RenderBuffer(size_t frames) : m_expandSize(32768), m_size(0)
 RenderBuffer::~RenderBuffer()
 {
     for(Data& data : m_buffers) {
-        if(data.transferBuffer) {
-            if(data.data)
-                SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), data.transferBuffer.get());
-        }
+        if(data.transferBuffer && data.data)
+            SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), data.transferBuffer.get());
     }
 }
 
@@ -56,10 +54,8 @@ size_t RenderBuffer::add(size_t count)
             return (size_t)-1;
         }
 
-        if(data.transferBuffer) {
-            if(data.data)
-                SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), data.transferBuffer.get());
-        }
+        if(data.transferBuffer && data.data)
+            SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), data.transferBuffer.get());
 
         SDL_GPUTransferBufferCreateInfo tbInfo;
         tbInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;

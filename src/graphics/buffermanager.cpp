@@ -29,6 +29,11 @@ void BufferManager::reset()
     m_drawCount = 0;
     m_lastDataCount = 0;
     m_pendingTextures.clear();
+    m_textureBufferOffset = 0;
+    if(m_textureBuffer && m_textureData) {
+        SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), m_textureBuffer.get());
+        m_textureData = nullptr;
+    }
 }
 
 SDL_GPUTexture* BufferManager::createTexture(const TexturePtr& texture)
@@ -91,13 +96,12 @@ void BufferManager::uploadTextureData(const TexturePtr& texture, const unsigned 
         tbInfo.props = 0;
         tbInfo.size = (uint32_t)bufferSize;
 
-        if(m_textureBuffer && m_textureData)
-            SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), m_textureBuffer.get());
-
         m_textureBuffer = GPUTransferBufferPtr(SDL_CreateGPUTransferBuffer(g_painter->getDevice(), &tbInfo));
-        m_textureData = (unsigned char*)SDL_MapGPUTransferBuffer(g_painter->getDevice(), m_textureBuffer.get(), false);
         m_textureBufferSize = bufferSize;
     }
+
+    if(!m_textureData)
+        m_textureData = (unsigned char*)SDL_MapGPUTransferBuffer(g_painter->getDevice(), m_textureBuffer.get(), false);
 
     if(!m_textures[texture->getId()].first) {
         const SizeI& size = texture->getSize();
@@ -243,7 +247,7 @@ void BufferManager::render(GPUCommand& gpuCommand)
 
         if(updateFlags & MustUpdateClipRect) {
             if(drawState.viewport.size() == drawState.resolution) {
-                rect.h = drawState.clipRect.left();
+                rect.x = drawState.clipRect.left();
                 rect.y = drawState.resolution.h - drawState.clipRect.bottom() - 1;
                 rect.w = drawState.clipRect.width();
                 rect.h = drawState.clipRect.height();
