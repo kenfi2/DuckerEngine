@@ -45,6 +45,8 @@ private:
     RectI m_rect;
     Color m_color;
     bool m_update = false;
+
+    friend class UIManager;
 };
 
 class UIManager {

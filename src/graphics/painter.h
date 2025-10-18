@@ -18,7 +18,10 @@ enum Graphics {
 
 class GPUCommand {
 public:
-    GPUCommand() : m_commandBuffer(nullptr), m_width(0), m_height(0) { }
+    GPUCommand() : m_commandBuffer(nullptr), m_width(0), m_height(0) {
+        m_fences.fill(nullptr);
+    }
+
     ~GPUCommand();
 
     bool acquire();
@@ -36,6 +39,7 @@ public:
 private:
     SDL_GPUCommandBuffer* m_commandBuffer;
     uint32_t m_width, m_height;
+    std::array<SDL_GPUFence*, FramesInFlight> m_fences;
 };
 
 class Painter {

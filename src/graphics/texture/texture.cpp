@@ -20,7 +20,10 @@ void Texture::uploadPixels(const ImagePtr& imagePtr)
     setupTranformMatrix();
     updateSampler();
 
-    g_painter->uploadTextureData(shared_from_this(), imagePtr->getPixelData(), imagePtr->getPixelDataSize());
+    // Pixmap pm = imagePtr->convertToPixmap(SDL_PIXELFORMAT_ABGR8888, RectI(), m_gpuSize, false);
+
+    // g_painter->uploadTextureData(shared_from_this(), (uint8_t*)pm.buffer.data(), pm.buffer.size()*4);
+    g_painter->uploadTextureData(shared_from_this(), (uint8_t*)imagePtr->getPixelData(), imagePtr->getPixelDataSize());
 }
 
 void Texture::updateSampler()

@@ -172,6 +172,7 @@ void Painter::setResolution(const SizeI &resolution)
     if(m_state.resolution == resolution)
         return;
     m_state.resolution = resolution;
+    m_painterFlags |= MustUpdateResolution;
     resetProjectionMatrix();
 }
 
@@ -556,8 +557,16 @@ bool GPUCommand::acquire()
 
 SDL_GPUTexture* GPUCommand::acquireSwapchain()
 {
+    int frameIndex = g_painter->getFrameIndex() % FramesInFlight;
+    SDL_GPUFence* fence = m_fences[frameIndex];
+    if(fence) {
+        SDL_WaitForGPUFences(g_painter->getDevice(), true, &fence, 1);
+        SDL_ReleaseGPUFence(g_painter->getDevice(), fence);
+        m_fences[frameIndex] = nullptr;
+    }
+
     SDL_GPUTexture* texture = nullptr;
-    if(!SDL_WaitAndAcquireGPUSwapchainTexture(m_commandBuffer, g_window->getSDLWindow(), &texture, &m_width, &m_height)) {
+    if(!SDL_AcquireGPUSwapchainTexture(m_commandBuffer, g_window->getSDLWindow(), &texture, &m_width, &m_height)) {
         SDL_Log("Acquire swapchainTexture: %s", SDL_GetError());
         return nullptr;
     }
@@ -578,9 +587,8 @@ void GPUCommand::submit(bool wait)
         return;
 
     if(wait) {
-        SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(m_commandBuffer);
-        SDL_WaitForGPUFences(g_painter->getDevice(), true, &fence, 1);
-        SDL_ReleaseGPUFence(g_painter->getDevice(), fence);
+        int frameIndex = g_painter->getFrameIndex() % FramesInFlight;
+        m_fences[frameIndex] = SDL_SubmitGPUCommandBufferAndAcquireFence(m_commandBuffer);
     } else
         SDL_SubmitGPUCommandBuffer(m_commandBuffer);
 
@@ -627,8 +635,8 @@ void Painter::flushRender()
 void Painter::swapBuffers()
 {
     draw();
+    m_gpuCommand.submit(true);
     m_frameIndex = (m_frameIndex + 1) % FramesInFlight;
-    m_gpuCommand.submit(false);
 }
 
 void Painter::pushState(bool doReset)

@@ -3,8 +3,18 @@
 
 #include <utils/include.h>
 #include <utils/size.h>
+#include <utils/rect.h>
 
-class Image {
+struct Pixmap {
+    int width;
+    int height;
+    int pitch;
+    int bytes_per_pixel;
+    uint32_t format;
+    std::vector<uint32_t> buffer;
+};
+
+class Image : public std::enable_shared_from_this<Image> {
 public:
     Image(const SizeI& size);
     Image(int width, int height);
@@ -20,6 +30,10 @@ public:
     int getPitch() { return m_size.w * 4; }
     int getPixelDataSize() { return m_size.area() * 4; }
     uint8_t* getPixelData(uint32_t x = 0, uint32_t y = 0) { return (uint8_t*)&m_pixels[m_size.w*y + x]; }
+    std::vector<uint32_t>& getPixels() { return m_pixels; }
+
+    Pixmap convertToPixmap(uint32_t format, RectI clip = RectI(), SizeI outSize = SizeI(), bool doFlip = false, int outPitch = 0);
+    void paste(const PointI& dest, const ImagePtr& srcImage, const RectI& srcRect, bool doFlip = false);
 
 private:
     SizeI m_size;

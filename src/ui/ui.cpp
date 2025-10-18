@@ -5,6 +5,9 @@
 #include <graphics/image.h>
 #include <graphics/framebuffer.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 UIWidget::UIWidget()
 {
     m_color = Color(255, 0, 255, 255);
@@ -44,44 +47,27 @@ static UIWidget* g_rootWidget = nullptr;
 void UIWidget::draw(PointF offset)
 {
     RectF drawRect = m_rect.toRectF().translated(offset);
-
+/* 
+    if(this == g_rootWidget) {
+        m_frameBuffer->bind();
+        g_painter->clear(Color(0.0f, 0.0f, 0.0f, 0.0f));
+    }
+ */
     g_painter->setColor(m_color);
     g_painter->drawFilledRect(drawRect);
-
-    // if(this == g_rootWidget) {
-        // m_frameBuffer->bind();
-        // g_painter->clear(Color(0.0f, 0.0f, 0.0f, 0.0f));
-    // }
 
     for(UIWidget* child : m_children) {
         PointF childOffset = offset + drawRect.topLeft().toPointF();
         childOffset += animatedOffset(10, 4);
         child->draw(childOffset);
     }
-    // if(this == g_rootWidget) {
-        // m_frameBuffer->release();
-        // m_frameBuffer->draw(drawRect);
-    // }
-/* 
-    if(!m_texture) {
-        m_texture = TexturePtr(new Texture());
-        texture2 = TexturePtr(new Texture());
+   /*  if(this == g_rootWidget) {
+        m_frameBuffer->release();
+        m_frameBuffer->draw(drawRect);
+    } */
 
-        std::vector<uint32_t> data(100*100);
-        for(uint32_t& d : data)
-            d = Color(0, 255, 0).rgba();
-        ImagePtr image = ImagePtr(new Image(data, SizeI(100, 100)));
-        m_texture->uploadPixels(image);
-
-        std::vector<uint32_t> data2(10*10);
-        for(uint32_t& d : data2)
-            d = Color(0, 0, 0).rgba();
-        ImagePtr image2 = ImagePtr(new Image(data2, SizeI(10, 10)));
-        texture2->uploadPixels(image2);
-    }
-
-    g_painter->setMultiTexture(1, m_texture);
-    g_painter->drawTexturedRect(RectI(50, 50, SizeI(100, 100)), texture2); */
+    if(this == g_rootWidget)
+        g_painter->drawTexturedRect(RectI(50, 50, m_texture->getSize()), m_texture);
 }
 
 void UIWidget::resize(int width, int height)
@@ -106,9 +92,26 @@ void UIManager::init()
 {
     m_rootWidget = new UIWidget;
     g_rootWidget = m_rootWidget;
-    // for(int i = 0; i < 10000; ++i) {
-        // m_rootWidget->addChild(RectI(i % 800, i % 800, i % 100, i % 100), Color(123, i % 127, i % 255));
-    // }
+    for(int i = 0; i < 10000; ++i) {
+        m_rootWidget->addChild(RectI(i % 800, i % 800, i % 100, i % 100), Color(123, i % 127, i % 255));
+    }
+    if(!m_rootWidget->m_texture) {
+        int w, h, channels;
+        unsigned char* data = stbi_load("tts.png", &w, &h, &channels, 4);
+        if(data) {
+            m_rootWidget->m_texture = TexturePtr(new Texture());
+
+            std::vector<uint32_t> dd(w * h);
+            memcpy(dd.data(), data, w*h*4);
+
+            ImagePtr image = ImagePtr(new Image(dd, SizeI(w, h)));
+            m_rootWidget->m_texture->uploadPixels(image);
+
+            stbi_image_free(data);
+        }
+        else
+            std::cout << "Falha ao carregar imagem:\n";
+    }
 }
 
 void UIManager::terminate()

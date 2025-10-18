@@ -25,10 +25,13 @@ void BufferManager::clear(const Color& color)
 
 void BufferManager::reset()
 {
+    SDL_GPUCommandBuffer* commandBuffer = g_painter->getGPUCommand().getCommand();
+
+    uploadPendingTextures(commandBuffer);
+
     m_renderBuffer->reset();
     m_drawCount = 0;
     m_lastDataCount = 0;
-    m_pendingTextures.clear();
     m_textureBufferOffset = 0;
     if(m_textureBuffer && m_textureData) {
         SDL_UnmapGPUTransferBuffer(g_painter->getDevice(), m_textureBuffer.get());
@@ -151,6 +154,8 @@ void BufferManager::uploadPendingTextures(SDL_GPUCommandBuffer *commandBuffer)
 
         SDL_UploadToGPUTexture(copyPass, &tti, &dest, false);
     }
+
+    m_pendingTextures.clear();
 
     if(copyPass)
         SDL_EndGPUCopyPass(copyPass);
